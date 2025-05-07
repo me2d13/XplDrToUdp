@@ -29,6 +29,7 @@ Sample response
     "laminar/B738/autopilot/lock_throttle": 0.0,
     "laminar/B738/autopilot/speed_mode": 0.0,
     "laminar/B738/axis/throttle1": 0.0,
+    "laminar/B738/axis/throttle2": 0.0,
     "sim/aircraft/view/acf_descrip": "Boeing 737-800X",
     "sim/flightmodel2/controls/elevator_trim": -0.38999998569488525
 }
@@ -39,3 +40,5 @@ There's also kind of mini-api showing current values at http://localhost:8080/ap
 Note these link works only when plugin is running.
 
 For now I'm using this plugin to send values for motorized throttle quadrant  controlled by ESP32 (so connected to my wifi).
+
+This code is in prototype phase, nothing nice, just focused on funcionality. It can be polished, extended (e.g. by serial output such as my older mtu-plugin) etc. Maybe in the future, now my focus is on hardware part.
