@@ -1,0 +1,13 @@
+{
+  "receiverHost": "192.168.1.121",
+  "receiverPort": 49152,
+  "updateInterval": 3000,
+  "dataRefs": [
+    "sim/aircraft/view/acf_descrip",
+    "laminar/B738/autopilot/lock_throttle",
+    "sim/flightmodel2/controls/elevator_trim",
+    "laminar/B738/axis/throttle1",
+    "laminar/B738/axis/throttle2",
+    "laminar/B738/autopilot/speed_mode"
+  ]
+}
