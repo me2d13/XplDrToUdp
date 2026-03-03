@@ -124,24 +124,33 @@ std::string XplData::buildJson(const Stream& stream) const
 			continue;  // not available yet
 		}
 		const auto& meta = it->second;
-		const std::string& key = def.alias;  // alias (or full name if no alias)
+		const std::string& key = def.alias;
+		const double mul = def.multiplier;  // 1.0 = no change
 
 		if (meta.type == xplmType_Float) {
-			j[key] = meta.value.fValue;
+			j[key] = meta.value.fValue * static_cast<float>(mul);
 		}
 		else if (meta.type == xplmType_Int) {
-			j[key] = meta.value.iValue;
+			// keep as int if multiplier is exactly 1, otherwise promote to double
+			if (mul == 1.0)
+				j[key] = meta.value.iValue;
+			else
+				j[key] = meta.value.iValue * mul;
 		}
 		else if (meta.type == xplmType_FloatArray) {
 			for (int i = 0; i < meta.valuesCount; i++)
-				j[key][i] = meta.value.fArrayValue[i];
+				j[key][i] = meta.value.fArrayValue[i] * static_cast<float>(mul);
 		}
 		else if (meta.type == xplmType_IntArray) {
-			for (int i = 0; i < meta.valuesCount; i++)
-				j[key][i] = meta.value.iArrayValue[i];
+			for (int i = 0; i < meta.valuesCount; i++) {
+				if (mul == 1.0)
+					j[key][i] = meta.value.iArrayValue[i];
+				else
+					j[key][i] = meta.value.iArrayValue[i] * mul;
+			}
 		}
 		else if (meta.type == xplmType_Data) {
-			j[key] = std::string(meta.value.cArrayValue);
+			j[key] = std::string(meta.value.cArrayValue);  // strings: multiplier ignored
 		}
 	}
 	return j.dump();

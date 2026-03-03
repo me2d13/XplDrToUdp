@@ -8,8 +8,9 @@
 // DataRefDef — one dataref entry: X-Plane path + output alias
 // ---------------------------------------------------------------------------
 struct DataRefDef {
-	std::string name;   // X-Plane dataref path (used with XPLMFindDataRef)
-	std::string alias;  // key used in the JSON output (defaults to name)
+	std::string name;     // X-Plane dataref path (used with XPLMFindDataRef)
+	std::string alias;    // key used in the JSON output (defaults to name)
+	double multiplier{ 1.0 }; // optional scale factor applied before output (e.g. -1 to invert)
 };
 
 // ---------------------------------------------------------------------------

@@ -22,8 +22,9 @@ static std::vector<DataRefDef> parseDataRefs(const nlohmann::json& arr)
 			def.alias = def.name;          // no alias → use full name
 		}
 		else if (item.is_object()) {
-			def.name  = item.value("name", std::string{});
-			def.alias = item.value("alias", def.name);  // default alias = name
+			def.name       = item.value("name", std::string{});
+			def.alias      = item.value("alias", def.name);  // default alias = name
+			def.multiplier = item.value("multiplier", 1.0);
 		}
 		else {
 			PLOGE << "Unexpected dataRef entry type, skipping";
