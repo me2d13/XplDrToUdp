@@ -35,7 +35,7 @@ Sample response
 }
 ```
 
-The plugin produces web log output accessible (by default) at http://localhost:8080.
+The plugin produces web log output accessible (by default) at http://localhost:8080/log.
 There's also kind of mini-api showing current values at http://localhost:8080/api/xpl.
 Note these link works only when plugin is running.
 

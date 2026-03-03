@@ -93,14 +93,18 @@ PLUGIN_API int XPluginStart(
 	//glb()->getXpl2SerialSyncService()->start();
 
 	// start web server in a separate thread
-
-
-	if (webServer.init() != 0) {
-		XPLMDebugString("Failed to start web server\n");
-	}
-	else {
-		XPLMDebugString("Started web server\n");
-		webServerThread = std::thread(&WebServer::run, &webServer);
+	const WebConfig& webCfg = glb()->getConfig()->getWebConfig();
+	if (!webCfg.enabled) {
+		PLOG_INFO << "Web server disabled in config";
+		XPLMDebugString("Web server disabled\n");
+	} else {
+		webServer.setPort(webCfg.port);
+		if (webServer.init() != 0) {
+			XPLMDebugString("Failed to start web server\n");
+		} else {
+			XPLMDebugString("Started web server\n");
+			webServerThread = std::thread(&WebServer::run, &webServer);
+		}
 	}
 
 	// streams (including sender threads) are started inside XplData::init()
@@ -122,11 +126,13 @@ PLUGIN_API void	XPluginStop(void)
 	/* Unregister the callback */
 	XPLMUnregisterFlightLoopCallback(MyFlightLoopCallback, NULL);
 
-	XPLMDebugString("Stopping web server\n");
-	webServer.stop();
-	XPLMDebugString("Waiting for web server to finish\n");
-	webServerThread.join();
-	XPLMDebugString("Web server stopped\n");
+	if (webServerThread.joinable()) {
+		XPLMDebugString("Stopping web server\n");
+		webServer.stop();
+		XPLMDebugString("Waiting for web server to finish\n");
+		webServerThread.join();
+		XPLMDebugString("Web server stopped\n");
+	}
 
 	XPLMDebugString("Stopping all streams\n");
 	glb()->getXplData()->stopAllStreams();

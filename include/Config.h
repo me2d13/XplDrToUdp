@@ -27,6 +27,14 @@ struct SerialConfig {
 };
 
 // ---------------------------------------------------------------------------
+// WebConfig — built-in HTTP status/log server
+// ---------------------------------------------------------------------------
+struct WebConfig {
+	bool enabled{ true };
+	int  port{ 8080 };
+};
+
+// ---------------------------------------------------------------------------
 // StreamConfig — everything that describes one output stream
 // ---------------------------------------------------------------------------
 struct StreamConfig {
@@ -44,12 +52,12 @@ class Config
 {
 private:
 	std::vector<StreamConfig> streams;
-	int serverPort{ 8080 };
+	WebConfig webConfig;
 
 public:
 	Config() = default;
 	bool readConfigFile(std::string pConfigPath);
 
 	const std::vector<StreamConfig>& getStreams() const { return streams; }
-	int getServerPort() const { return serverPort; }
+	const WebConfig& getWebConfig() const { return webConfig; }
 };

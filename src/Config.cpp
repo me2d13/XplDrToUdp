@@ -41,7 +41,7 @@ static std::vector<DataRefDef> parseDataRefs(const nlohmann::json& arr)
 // ---------------------------------------------------------------------------
 // Parse the new "streams" array format
 // ---------------------------------------------------------------------------
-static std::vector<StreamConfig> parseStreams(const nlohmann::json& streamsArr, int defaultServerPort)
+static std::vector<StreamConfig> parseStreams(const nlohmann::json& streamsArr)
 {
 	std::vector<StreamConfig> result;
 	for (const auto& s : streamsArr) {
@@ -120,11 +120,21 @@ bool Config::readConfigFile(std::string pConfigPath)
 	try {
 		fileStream >> j;
 
-		serverPort = j.value("serverPort", 8080);
+
+		// parse web config
+		if (j.contains("web")) {
+			webConfig.enabled = j["web"].value("enabled", true);
+			webConfig.port    = j["web"].value("port", 8080);
+		} else {
+			// legacy top-level serverPort
+			webConfig.enabled = true;
+			webConfig.port    = j.value("serverPort", 8080);
+		}
+		PLOGD << "Web server: enabled=" << webConfig.enabled << " port=" << webConfig.port;
 
 		if (j.contains("streams")) {
 			PLOGD << "Found 'streams' array — using new config format";
-			streams = parseStreams(j["streams"], serverPort);
+			streams = parseStreams(j["streams"]);
 			PLOGD << "Parsed " << streams.size() << " stream(s)";
 		}
 		else {
