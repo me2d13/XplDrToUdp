@@ -5,26 +5,25 @@
 #include <string>
 #include <mutex>
 #include <condition_variable>
-#include <winsock2.h>
+#include <windows.h>
 
 
-class UdpDataPushSerice : public IDataSender
+class SerialDataPushService : public IDataSender
 {
 private:
-	UdpConfig               udpConfig;
-	int                     successPacketsCount{ 0 };
-	int                     failedPacketsCount{ 0 };
+	SerialConfig            serialConfig;
+	HANDLE                  hPort{ INVALID_HANDLE_VALUE };
 	bool                    isConnected{ false };
 	bool                    shouldTerminate{ false };
 	std::string             dataToSend{ };
-	SOCKET                  sock;
-	sockaddr_in             destination;
 	std::mutex              mtx;
 	std::condition_variable cv;
+	int                     successPacketsCount{ 0 };
+	int                     failedPacketsCount{ 0 };
 	void doSendData();
 
 public:
-	explicit UdpDataPushSerice(const UdpConfig& config) : udpConfig(config) {}
+	explicit SerialDataPushService(const SerialConfig& config) : serialConfig(config) {}
 
 	bool connect()                         override;
 	bool disconnect()                      override;

@@ -1,13 +1,49 @@
 {
-  "receiverHost": "192.168.1.121",
-  "receiverPort": 49152,
-  "updateInterval": 3000,
-  "dataRefs": [
-    "sim/aircraft/view/acf_descrip",
-    "laminar/B738/autopilot/lock_throttle",
-    "sim/flightmodel2/controls/elevator_trim",
-    "laminar/B738/axis/throttle1",
-    "laminar/B738/axis/throttle2",
-    "laminar/B738/autopilot/speed_mode"
+  "_comment": "Example using NEW streams format. Old flat format still works too.",
+  "serverPort": 8080,
+  "streams": [
+    {
+      "enabled": true,
+      "interval": 500,
+      "udp": {
+        "host": "192.168.1.121",
+        "port": 49152
+      },
+      "dataRefs": [
+        {
+          "name": "laminar/B738/axis/throttle1",
+          "alias": "thr1"
+        },
+        {
+          "name": "laminar/B738/axis/throttle2",
+          "alias": "thr2"
+        },
+        {
+          "name": "laminar/B738/autopilot/lock_throttle",
+          "alias": "athr"
+        }
+      ]
+    },
+    {
+      "enabled": true,
+      "interval": 1000,
+      "udp": {
+        "host": "192.168.1.121",
+        "port": 49153
+      },
+      "dataRefs": [
+        {
+          "name": "sim/flightmodel2/controls/elevator_trim",
+          "alias": "trim"
+        },
+        {
+          "name": "laminar/B738/autopilot/speed_mode",
+          "alias": "spdMode"
+        },
+        {
+          "name": "sim/aircraft/view/acf_descrip"
+        }
+      ]
+    }
   ]
 }

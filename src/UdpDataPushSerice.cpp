@@ -1,5 +1,4 @@
 #include "UdpDataPushSerice.h"
-#include "global.h"
 #include <iostream>
 #include <string>
 #include <plog/Log.h>
@@ -22,32 +21,26 @@ bool UdpDataPushSerice::connect() {
 		return false;
     }
 
-    // Set up connection and send 
-    std::string hostname{ glb()->getConfig()->getUdpIpAddress()};
-    uint16_t port = glb()->getConfig()->getUdpPort();
-
     sock = ::socket(AF_INET, SOCK_DGRAM, 0);
 
     destination.sin_family = AF_INET;
-    destination.sin_port = htons(port);
-    std::wstring stemp = std::wstring(hostname.begin(), hostname.end());
+    destination.sin_port   = htons(static_cast<u_short>(udpConfig.port));
+    std::wstring stemp = std::wstring(udpConfig.host.begin(), udpConfig.host.end());
     InetPton(AF_INET, stemp.c_str(), &destination.sin_addr.s_addr);
 
     isConnected = true;
-    PLOGD << "Connected to " << hostname << ":" << port;
+    PLOGD << "Connected to " << udpConfig.host << ":" << udpConfig.port;
     return true;
 }
 
 bool UdpDataPushSerice::disconnect() {
-    // check if already connected
     if (!isConnected) {
         PLOGD << "Already disconnected";
         return true;
     }
     ::closesocket(sock);
-
-    // Clean up sockets library
     WSACleanup();
+    isConnected = false;
     return true;
 }
 
@@ -62,13 +55,15 @@ void UdpDataPushSerice::doSendData() {
 		}
 	}
 
-	int n_bytes = ::sendto(sock, dataToSend.c_str(), dataToSend.length(), 0, reinterpret_cast<sockaddr*>(&destination), sizeof(destination));
+	int n_bytes = ::sendto(sock, dataToSend.c_str(), (int)dataToSend.length(), 0,
+	                       reinterpret_cast<sockaddr*>(&destination), sizeof(destination));
     if (n_bytes == SOCKET_ERROR) {
 		PLOGE << "sendto failed: " << WSAGetLastError();
 		failedPacketsCount++;
 	}
     else {
-        PLOGD << "Sent " << n_bytes << " bytes to " << glb()->getConfig()->getUdpIpAddress() << ":" << glb()->getConfig()->getUdpPort();
+        PLOGD << "Sent " << n_bytes << " bytes to "
+              << udpConfig.host << ":" << udpConfig.port;
 		successPacketsCount++;
 	}
 	dataToSend.clear();
@@ -86,7 +81,6 @@ void UdpDataPushSerice::run() {
 
     while (!shouldTerminate) {
 		std::unique_lock<std::mutex> lock(mtx);
-        // wait for data to be available
         while (dataToSend.empty()) {
 			cv.wait(lock);
             if (shouldTerminate) {
@@ -99,7 +93,7 @@ void UdpDataPushSerice::run() {
     disconnect();
 }
 
-void UdpDataPushSerice::sendData(std::string data) {
+void UdpDataPushSerice::sendData(const std::string& data) {
 	std::unique_lock<std::mutex> lock(mtx);
 	dataToSend = data;
 	cv.notify_one();

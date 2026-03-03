@@ -6,188 +6,290 @@
 #include "json.hpp"
 
 
-void XplData::init()
-{
-	initDataRefs();
-}
-
-bool XplData::initDataRef(XplDataRefMeta& dataRefMeta, const char* name) {
-	if (dataRefMeta.dataRef == NULL) {
-		dataRefMeta.dataRef = XPLMFindDataRef(name);
-		if (dataRefMeta.dataRef == NULL) {
-			PLOGE << "Dataref " << name << " not found";
-		} else {
-			PLOGD << "Dataref " << name << " found";
-			// type of dataref
-			dataRefMeta.type = XPLMGetDataRefTypes(dataRefMeta.dataRef);
-			dataRefMeta.value.fValue = 0.0f;
-			if (dataRefMeta.type == xplmType_Float) {
-				PLOGD << "Dataref " << name << " is a float";
-			}
-			else if (dataRefMeta.type == xplmType_Int) {
-				dataRefMeta.value.iValue = 0;
-				PLOGD << "Dataref " << name << " is an int";
-			}
-			else if (dataRefMeta.type == xplmType_Data) {
-				dataRefMeta.value.cArrayValue[0] = '\0'; // ensure null termination
-				PLOGD << "Dataref " << name << " is a data";
-			}
-			else if (dataRefMeta.type == xplmType_IntArray) {
-				PLOGD << "Dataref " << name << " is a int array";
-				// get the size of the data array
-				dataRefMeta.valuesCount = XPLMGetDatavi(dataRefMeta.dataRef, NULL, 0, 0);
-				for (size_t i = 0; i < dataRefMeta.valuesCount; i++)
-				{
-					dataRefMeta.value.iArrayValue[i] = 0;
-				}
-				PLOGD << "Dataref " << name << " has " << dataRefMeta.valuesCount << " values";
-			}
-			else if (dataRefMeta.type == xplmType_FloatArray) {
-				PLOGD << "Dataref " << name << " is a float array";
-				// get the size of the data array
-				dataRefMeta.valuesCount = XPLMGetDatavf(dataRefMeta.dataRef, NULL, 0, 0);
-				for (size_t i = 0; i < dataRefMeta.valuesCount; i++)
-				{
-					dataRefMeta.value.fArrayValue[i] = 0.0f;
-				}
-				PLOGD << "Dataref " << name << " has " << dataRefMeta.valuesCount << " values";
-			}
-			else {
-				PLOGE << "Dataref " << name << " is of unknown type " << dataRefMeta.type;
-			}
-
-		}
-	}
-	return dataRefMeta.dataRef != NULL;
-}
-
-int XplData::initDataRefs()
-{
-	int count = 0;
-	if (dataRefs.size() > 0) {
-		dataRefs.clear(); // clear the vector if it is not empty
-	}
-	for (const auto& dataRefName : glb()->getConfig()->getDataRefNames()) {
-		XplDataRefMeta dataRefMeta;
-		dataRefMeta.dataRef = NULL;
-		if (initDataRef(dataRefMeta, dataRefName.c_str())) {
-			count++;
-		}
-		dataRefs.push_back(dataRefMeta);
-	}
-	dataRefInitializedCount = count;
-	return count;
-}
-
-uint64_t timeSinceEpochMillisec() {
+static uint64_t nowMillis() {
 	using namespace std::chrono;
 	return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 }
 
-void XplData::logDataRefValues()
+// ---------------------------------------------------------------------------
+// initDataRef — try to find one dataref by name and determine its type
+// ---------------------------------------------------------------------------
+bool XplData::initDataRef(XplDataRefMeta& meta, const std::string& name)
 {
-	// loop through all datarefs and log their values
-	for (size_t i = 0; i < dataRefs.size(); i++) {
-		if (dataRefs[i].dataRef != NULL) {
-			std::string name = glb()->getConfig()->getDataRefNames()[i];
-			// read the dataref value
-			if (dataRefs[i].type == xplmType_Float) {
-				PLOGD << "XplData::logDataRefValues() - Dataref " << name << ": " << dataRefs[i].value.fValue;
-			}
-			else if (dataRefs[i].type == xplmType_Int) {
-				PLOGD << "XplData::logDataRefValues() - Dataref " << name << ": " << dataRefs[i].value.iValue;
-			}
-			else if (dataRefs[i].type == xplmType_FloatArray) {
-				PLOGD << "XplData::logDataRefValues() - Dataref " << name << ": ";
-				for (int j = 0; j < dataRefs[i].valuesCount; j++) {
-					PLOGD << dataRefs[i].value.fArrayValue[j] << " ";
-				}
-			}
-			else if (dataRefs[i].type == xplmType_IntArray) {
-				PLOGD << "XplData::logDataRefValues() - Dataref " << name << ": ";
-				for (int j = 0; j < dataRefs[i].valuesCount; j++) {
-					PLOGD << dataRefs[i].value.iArrayValue[j] << " ";
-				}
-			}
-			else if (dataRefs[i].type == xplmType_Data) {
-				PLOGD << "XplData::logDataRefValues() - Dataref " << name << ": " << dataRefs[i].value.cArrayValue;
-			}
-			else {
-				PLOGE << "XplData::logDataRefValues() - Unknown type for dataref " << name;
+	if (meta.dataRef != NULL) {
+		return true;  // already initialised
+	}
+	meta.dataRef = XPLMFindDataRef(name.c_str());
+	if (meta.dataRef == NULL) {
+		PLOGE << "Dataref not found: " << name;
+		return false;
+	}
+	meta.type = XPLMGetDataRefTypes(meta.dataRef);
+	meta.value.fValue = 0.0f;
+
+	if (meta.type == xplmType_Float) {
+		PLOGD << "DR float:      " << name;
+	}
+	else if (meta.type == xplmType_Int) {
+		meta.value.iValue = 0;
+		PLOGD << "DR int:        " << name;
+	}
+	else if (meta.type == xplmType_Data) {
+		meta.value.cArrayValue[0] = '\0';
+		PLOGD << "DR data(str):  " << name;
+	}
+	else if (meta.type == xplmType_IntArray) {
+		meta.valuesCount = XPLMGetDatavi(meta.dataRef, NULL, 0, 0);
+		for (int i = 0; i < meta.valuesCount; i++) meta.value.iArrayValue[i] = 0;
+		PLOGD << "DR int[" << meta.valuesCount << "]: " << name;
+	}
+	else if (meta.type == xplmType_FloatArray) {
+		meta.valuesCount = XPLMGetDatavf(meta.dataRef, NULL, 0, 0);
+		for (int i = 0; i < meta.valuesCount; i++) meta.value.fArrayValue[i] = 0.0f;
+		PLOGD << "DR float[" << meta.valuesCount << "]: " << name;
+	}
+	else {
+		PLOGE << "DR unknown type " << meta.type << ": " << name;
+	}
+	return true;
+}
+
+// ---------------------------------------------------------------------------
+// initDataRefs — build/refresh the master registry from all stream configs
+// ---------------------------------------------------------------------------
+int XplData::initDataRefs()
+{
+	int count = 0;
+	const auto& streamConfigs = glb()->getConfig()->getStreams();
+
+	// Collect the union of all unique dataref names across all streams
+	for (const auto& sc : streamConfigs) {
+		for (const auto& def : sc.dataRefs) {
+			if (masterRegistry.find(def.name) == masterRegistry.end()) {
+				masterRegistry[def.name] = XplDataRefMeta{};  // insert empty slot
 			}
 		}
 	}
-}
 
-void XplData::getDataRefValue(XplDataRefMeta& dataRefMeta) {
-	if (dataRefMeta.dataRef != NULL) {
-		// read the dataref value
-		if (dataRefMeta.type == xplmType_Float) {
-			dataRefMeta.value.fValue = XPLMGetDataf(dataRefMeta.dataRef);
-		}
-		else if (dataRefMeta.type == xplmType_Int) {
-			dataRefMeta.value.iValue = XPLMGetDatai(dataRefMeta.dataRef);
-		}
-		else if (dataRefMeta.type == xplmType_FloatArray) {
-			XPLMGetDatavf(dataRefMeta.dataRef, dataRefMeta.value.fArrayValue, 0, dataRefMeta.valuesCount);
-		}
-		else if (dataRefMeta.type == xplmType_IntArray) {
-			XPLMGetDatavi(dataRefMeta.dataRef, dataRefMeta.value.iArrayValue, 0, dataRefMeta.valuesCount);
-		}
-		else if (dataRefMeta.type == xplmType_Data) {
-			XPLMGetDatab(dataRefMeta.dataRef, dataRefMeta.value.cArrayValue, 0, sizeof(dataRefMeta.value.cArrayValue));
-			// ensure null termination
-			dataRefMeta.value.cArrayValue[sizeof(dataRefMeta.value.cArrayValue) - 1] = '\0';
+	// Try to initialise any slot that doesn't have a handle yet
+	for (auto& [name, meta] : masterRegistry) {
+		if (meta.dataRef == NULL) {
+			if (initDataRef(meta, name)) {
+				count++;
+			}
 		}
 		else {
-			PLOGE << "XplData::getDataRefValue() - Unknown type for dataref " << dataRefMeta.dataRef;
+			count++;  // already initialised
 		}
 	}
-
+	dataRefInitializedCount = count;
+	PLOGD << "Master registry: " << count << "/" << masterRegistry.size() << " datarefs initialised";
+	return count;
 }
 
+// ---------------------------------------------------------------------------
+// readDataRefValue — read current X-Plane value into cached meta
+// ---------------------------------------------------------------------------
+void XplData::readDataRefValue(XplDataRefMeta& meta)
+{
+	if (meta.dataRef == NULL) return;
+
+	if (meta.type == xplmType_Float) {
+		meta.value.fValue = XPLMGetDataf(meta.dataRef);
+	}
+	else if (meta.type == xplmType_Int) {
+		meta.value.iValue = XPLMGetDatai(meta.dataRef);
+	}
+	else if (meta.type == xplmType_FloatArray) {
+		XPLMGetDatavf(meta.dataRef, meta.value.fArrayValue, 0, meta.valuesCount);
+	}
+	else if (meta.type == xplmType_IntArray) {
+		XPLMGetDatavi(meta.dataRef, meta.value.iArrayValue, 0, meta.valuesCount);
+	}
+	else if (meta.type == xplmType_Data) {
+		XPLMGetDatab(meta.dataRef, meta.value.cArrayValue, 0, sizeof(meta.value.cArrayValue));
+		meta.value.cArrayValue[sizeof(meta.value.cArrayValue) - 1] = '\0';
+	}
+}
+
+// ---------------------------------------------------------------------------
+// buildJson — assemble JSON for a single stream using master registry values
+// ---------------------------------------------------------------------------
+std::string XplData::buildJson(const Stream& stream) const
+{
+	nlohmann::json j;
+	for (const auto& def : stream.config.dataRefs) {
+		auto it = masterRegistry.find(def.name);
+		if (it == masterRegistry.end() || it->second.dataRef == NULL) {
+			continue;  // not available yet
+		}
+		const auto& meta = it->second;
+		const std::string& key = def.alias;  // alias (or full name if no alias)
+
+		if (meta.type == xplmType_Float) {
+			j[key] = meta.value.fValue;
+		}
+		else if (meta.type == xplmType_Int) {
+			j[key] = meta.value.iValue;
+		}
+		else if (meta.type == xplmType_FloatArray) {
+			for (int i = 0; i < meta.valuesCount; i++)
+				j[key][i] = meta.value.fArrayValue[i];
+		}
+		else if (meta.type == xplmType_IntArray) {
+			for (int i = 0; i < meta.valuesCount; i++)
+				j[key][i] = meta.value.iArrayValue[i];
+		}
+		else if (meta.type == xplmType_Data) {
+			j[key] = std::string(meta.value.cArrayValue);
+		}
+	}
+	return j.dump();
+}
+
+// ---------------------------------------------------------------------------
+// valuesAsJson — dump the entire master registry for the web API (/xpl endpoint)
+//   Uses the dataref name as key (not alias) for a complete diagnostic view.
+// ---------------------------------------------------------------------------
+std::string XplData::valuesAsJson() const
+{
+	nlohmann::json j;
+	for (const auto& [name, meta] : masterRegistry) {
+		if (meta.dataRef == NULL) continue;
+		if (meta.type == xplmType_Float) {
+			j[name] = meta.value.fValue;
+		}
+		else if (meta.type == xplmType_Int) {
+			j[name] = meta.value.iValue;
+		}
+		else if (meta.type == xplmType_FloatArray) {
+			for (int i = 0; i < meta.valuesCount; i++)
+				j[name][i] = meta.value.fArrayValue[i];
+		}
+		else if (meta.type == xplmType_IntArray) {
+			for (int i = 0; i < meta.valuesCount; i++)
+				j[name][i] = meta.value.iArrayValue[i];
+		}
+		else if (meta.type == xplmType_Data) {
+			j[name] = std::string(meta.value.cArrayValue);
+		}
+	}
+	return j.dump();
+}
+
+// ---------------------------------------------------------------------------
+// init — called once at plugin start
+// ---------------------------------------------------------------------------
+void XplData::init()
+{
+	// Stop any previously running streams (e.g. on reload)
+	stopAllStreams();
+
+	// Build stream runtime objects from config
+	const auto& streamConfigs = glb()->getConfig()->getStreams();
+
+	for (const auto& sc : streamConfigs) {
+		if (!sc.enabled) {
+			PLOGD << "Stream disabled, skipping";
+			continue;
+		}
+
+		Stream s;
+		s.config = sc;
+
+		if (sc.udp.has_value()) {
+			s.sender = std::make_unique<UdpDataPushSerice>(sc.udp.value());
+			PLOGD << "Created UDP stream -> "
+			      << sc.udp->host << ":" << sc.udp->port
+			      << "  interval=" << sc.intervalMs << "ms";
+		}
+		else if (sc.serial.has_value()) {
+			s.sender = std::make_unique<SerialDataPushService>(sc.serial.value());
+			PLOGD << "Created Serial stream -> "
+			      << sc.serial->port << " @ " << sc.serial->baudRate << " baud"
+			      << "  interval=" << sc.intervalMs << "ms";
+		}
+		else {
+			PLOGE << "Stream has no supported output method (udp/serial), skipping";
+			continue;
+		}
+
+		// Start the sender's worker thread
+		IDataSender* senderPtr = s.sender.get();
+		s.senderThread = std::thread([senderPtr]() { senderPtr->run(); });
+		streams.push_back(std::move(s));
+	}
+
+	initDataRefs();
+}
+
+// ---------------------------------------------------------------------------
+// update — called every ~100ms from the X-Plane flight loop callback
+// ---------------------------------------------------------------------------
 void XplData::update()
 {
-	// if any datarefs are not initialized, try to initialize them, but only once a minute
-	// get current miliseconds
-	uint64_t currentMillis = timeSinceEpochMillisec();
-	// if we have not tried to initialize datarefs yet or it has been more than a 10s since we last tried
-	if (dataRefInitializedCount < glb()->getConfig()->getDataRefNames().size() && lastDataRefInitAttemptMillis == 0 || currentMillis - lastDataRefInitAttemptMillis > 10000) {
+	uint64_t currentMillis = nowMillis();
+
+	// Re-try failed dataref lookups periodically
+	if (dataRefInitializedCount < (int)masterRegistry.size() &&
+	    (lastDataRefInitAttemptMillis == 0 ||
+	     currentMillis - lastDataRefInitAttemptMillis > 10000))
+	{
 		initDataRefs();
-		// set last dataref init attempt time to now
 		lastDataRefInitAttemptMillis = currentMillis;
-		//logDataRefValues();
 	}
-	if (currentMillis - lastValuesUpdateMillis >= glb()->getConfig()->getUpdateInterval()) {
-		for (size_t i = 0; i < dataRefs.size(); i++) {
-			if (dataRefs[i].dataRef != NULL) {
-				getDataRefValue(dataRefs[i]);
-			}
+
+	// Read all datarefs in the master registry
+	for (auto& [name, meta] : masterRegistry) {
+		readDataRefValue(meta);
+	}
+
+	// Check each stream — send if its interval has elapsed
+	for (auto& stream : streams) {
+		if (stream.sender == nullptr) continue;
+		if (currentMillis - stream.lastSentMillis >= (uint64_t)stream.config.intervalMs) {
+			std::string json = buildJson(stream);
+			stream.sender->sendData(json);
+			stream.lastSentMillis = currentMillis;
 		}
-		lastValuesUpdateMillis = currentMillis;
-		// log the dataref values
-		//logDataRefValues();
-		// 
-		// send the dataref values to the UDP server
-		glb()->getUdpDataPushService()->sendData(valuesAsJson());
 	}
 }
 
-void XplData::onPluginReceiveMessage(XPLMPluginID inFromWho, int	inMessage, void* inParam)
+// ---------------------------------------------------------------------------
+// stopAllStreams — called at plugin stop
+// ---------------------------------------------------------------------------
+void XplData::stopAllStreams()
 {
-	int planeIndex = (int)inParam;
+	for (auto& stream : streams) {
+		if (stream.sender) {
+			stream.sender->terminate();
+		}
+	}
+	for (auto& stream : streams) {
+		if (stream.senderThread.joinable()) {
+			stream.senderThread.join();
+		}
+	}
+	streams.clear();
+}
+
+// ---------------------------------------------------------------------------
+// onPluginReceiveMessage
+// ---------------------------------------------------------------------------
+void XplData::onPluginReceiveMessage(XPLMPluginID inFromWho, int inMessage, void* inParam)
+{
+	int planeIndex = (int)(intptr_t)inParam;
 	switch (inMessage)
 	{
 	case XPLM_MSG_PLANE_LOADED:
-		PLOGD << "XplData::onPluginReceiveMessage() - XPLM_MSG_PLANE_LOADED with index " << planeIndex;
+		PLOGD << "XPLM_MSG_PLANE_LOADED index=" << planeIndex;
 		if (planeIndex == 0) {
-			// some datarefs are plane specific, so we need to reinitialize them
 			initDataRefs();
 			inFlight = true;
 		}
 		break;
 	case XPLM_MSG_PLANE_UNLOADED:
-		PLOGD << "XplData::onPluginReceiveMessage() - XPLM_MSG_PLANE_UNLOADED with index " << planeIndex;
+		PLOGD << "XPLM_MSG_PLANE_UNLOADED index=" << planeIndex;
 		if (planeIndex == 0) {
 			inFlight = false;
 		}
@@ -195,40 +297,4 @@ void XplData::onPluginReceiveMessage(XPLMPluginID inFromWho, int	inMessage, void
 	default:
 		break;
 	}
-}
-
-std::string XplData::valuesAsJson() {
-	logDataRefValues();
-	// create a json object
-	nlohmann::json j;
-	// loop through all datarefs and add them to the json object
-	for (size_t i = 0; i < dataRefs.size(); i++) {
-		if (dataRefs[i].dataRef != NULL) {
-			std::string name = glb()->getConfig()->getDataRefNames()[i];
-			// read the dataref value
-			if (dataRefs[i].type == xplmType_Float) {
-				j[name] = dataRefs[i].value.fValue;
-			}
-			else if (dataRefs[i].type == xplmType_Int) {
-				j[name] = dataRefs[i].value.iValue;
-			}
-			else if (dataRefs[i].type == xplmType_FloatArray) {
-				for (int jIndex = 0; jIndex < dataRefs[i].valuesCount; jIndex++) {
-					j[name][jIndex] = dataRefs[i].value.fArrayValue[jIndex];
-				}
-			}
-			else if (dataRefs[i].type == xplmType_IntArray) {
-				for (int jIndex = 0; jIndex < dataRefs[i].valuesCount; jIndex++) {
-					j[name][jIndex] = dataRefs[i].value.iArrayValue[jIndex];
-				}
-			}
-			else if (dataRefs[i].type == xplmType_Data) {
-				j[name] = std::string(dataRefs[i].value.cArrayValue);
-			}
-			else {
-				PLOGE << "XplData::valuesAsJson() - Unknown type for dataref " << name;
-			}
-		}
-	}
-	return j.dump();
 }

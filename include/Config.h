@@ -2,25 +2,54 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 
+// ---------------------------------------------------------------------------
+// DataRefDef — one dataref entry: X-Plane path + output alias
+// ---------------------------------------------------------------------------
+struct DataRefDef {
+	std::string name;   // X-Plane dataref path (used with XPLMFindDataRef)
+	std::string alias;  // key used in the JSON output (defaults to name)
+};
+
+// ---------------------------------------------------------------------------
+// Output-method configs
+// ---------------------------------------------------------------------------
+struct UdpConfig {
+	std::string host{ "127.0.0.1" };
+	int         port{ 5000 };
+};
+
+// Placeholder for future serial support
+struct SerialConfig {
+	std::string port;
+	int         baudRate{ 115200 };
+};
+
+// ---------------------------------------------------------------------------
+// StreamConfig — everything that describes one output stream
+// ---------------------------------------------------------------------------
+struct StreamConfig {
+	bool                        enabled{ true };
+	int                         intervalMs{ 1000 };
+	std::optional<UdpConfig>    udp;
+	std::optional<SerialConfig> serial;
+	std::vector<DataRefDef>     dataRefs;
+};
+
+// ---------------------------------------------------------------------------
+// Config — reads config.json, exposes parsed streams
+// ---------------------------------------------------------------------------
 class Config
 {
 private:
-	// collection to hold dataref names
-	std::vector<std::string> dataRefNames;
-	// ip address of UDP receiver
-	std::string udpIpAddress;
-	// port of UDP receiver
-	int udpPort;
-	// update interval in milliseconds
-	int updateInterval;
-	int serverPort;
+	std::vector<StreamConfig> streams;
+	int serverPort{ 8080 };
+
 public:
-	Config() : updateInterval(1000), serverPort(8080) {};
+	Config() = default;
 	bool readConfigFile(std::string pConfigPath);
-	std::vector<std::string> getDataRefNames() { return dataRefNames; }
-	std::string getUdpIpAddress() { return udpIpAddress; }
-	int getUdpPort() { return udpPort; }
-	int getUpdateInterval() { return updateInterval; }
-	int getServerPort() { return serverPort; }
+
+	const std::vector<StreamConfig>& getStreams() const { return streams; }
+	int getServerPort() const { return serverPort; }
 };

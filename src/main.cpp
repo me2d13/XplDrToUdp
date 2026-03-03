@@ -59,7 +59,6 @@ static float	MyFlightLoopCallback(
 
 WebServer webServer;
 std::thread webServerThread;
-std::thread udpPushThread;
 
 PLUGIN_API int XPluginStart(
 	char* outName,
@@ -104,8 +103,7 @@ PLUGIN_API int XPluginStart(
 		webServerThread = std::thread(&WebServer::run, &webServer);
 	}
 
-	// start UDP push service in a separate thread
-	udpPushThread = std::thread(&UdpDataPushSerice::run, glb()->getUdpDataPushService());
+	// streams (including sender threads) are started inside XplData::init()
 
 
 	/* Register our callback for once a second.  Positive intervals
@@ -130,9 +128,8 @@ PLUGIN_API void	XPluginStop(void)
 	webServerThread.join();
 	XPLMDebugString("Web server stopped\n");
 
-	XPLMDebugString("Stopping UDP push service\n");
-	glb()->getUdpDataPushService()->terminate();
-	udpPushThread.join();
+	XPLMDebugString("Stopping all streams\n");
+	glb()->getXplData()->stopAllStreams();
 
 	//glb()->getXpl2SerialSyncService()->stop();
 	//glb()->getSerialService()->shutdown();
